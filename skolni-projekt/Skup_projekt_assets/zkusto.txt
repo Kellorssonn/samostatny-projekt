@@ -1,0 +1,235 @@
+import pygame
+import os
+import json
+import random
+
+pygame.init()
+
+# --- Game Setup ---
+# Set screen dimensions
+SCREEN_WIDTH = 1920
+SCREEN_HEIGHT = 1080
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Main Menu")
+
+clock = pygame.time.Clock()
+
+# --- Colors ---
+POZADI = (20, 40, 60) # A darker background for better text visibility
+GRAY = (200, 200, 200)
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (200, 50, 50)
+GREEN = (50, 200, 50)
+BLUE = (50, 50, 200)
+TEXT_COLOR = (230, 230, 230) # Off-white for text
+
+# --- Fonts ---
+title_font = pygame.font.SysFont("Arial", 48, bold=True)
+text_font = pygame.font.SysFont("Arial", 32)
+
+# --- Button Layout ---
+button_width = 300
+button_height = 80
+button_spacing = 40
+start_x = (SCREEN_WIDTH - button_width) // 2
+group_height = 3 * button_height + 2 * button_spacing
+start_y = int(SCREEN_HEIGHT * 3 / 4 - group_height // 2)
+
+# --- Define Button Rectangles ---
+# Main menu buttons
+button_tutorial = pygame.Rect(start_x - button_width - 40, start_y, button_width, button_height)
+button_start = pygame.Rect(start_x, start_y, button_width, button_height)
+button_options = pygame.Rect(start_x, start_y + button_height + button_spacing, button_width, button_height)
+button_exit = pygame.Rect(start_x, start_y + 2 * (button_height + button_spacing), button_width, button_height)
+button_load = pygame.Rect(start_x + button_width + 40, start_y, button_width, button_height)
+button_reset = pygame.Rect(start_x + button_width + 40, start_y + button_height + button_spacing, button_width, button_height)
+
+# In-game save button
+save_button = pygame.Rect(20, 60, button_width, button_height)
+
+# Options screen cheat button
+cheat_button = pygame.Rect((SCREEN_WIDTH - button_width) // 2, (SCREEN_HEIGHT - button_height) // 2, button_width, button_height)
+
+# Tutorial screen back button
+back_button = pygame.Rect(50, SCREEN_HEIGHT - 150, button_width, button_height)
+
+
+# --- Asset Loading Function ---
+def load_image(file_path, size=None):
+    """Loads an image, handles potential errors, and scales it."""
+    try:
+        image = pygame.image.load(file_path).convert_alpha()
+        if size:
+            return pygame.transform.scale(image, size)
+        return image
+    except pygame.error as e:
+        print(f"Error loading image {file_path}: {e}")
+        # Create a placeholder surface if image is missing
+        placeholder = pygame.Surface(size if size else (100, 100))
+        placeholder.fill(RED)
+        return placeholder
+
+# --- Load Images ---
+# IMPORTANT: Place your image files in the same directory as this script.
+background_image = load_image("menu.png", (SCREEN_WIDTH, SCREEN_HEIGHT))
+start_background_image = load_image("herniPozadi.png", (SCREEN_WIDTH, SCREEN_HEIGHT))
+
+button_tutorial_image = load_image("tutorial.png", (button_width, button_height))
+button_start_image = load_image("start.png", (button_width, button_height))
+button_options_image = load_image("options.png", (button_width, button_height))
+button_exit_image = load_image("exit.png", (button_width, button_height))
+load_image_asset = load_image("load.png", (button_width, button_height))
+save_image_asset = load_image("save.png", (button_width, button_height))
+restart_image = load_image("restart.png", (button_width, button_height))
+back_image = load_image("back.png", (button_width, button_height)) # Assumes you have a 'back.png'
+
+# Tile images
+tile_size = 100
+tile_images = [
+    load_image("kytka1.png", (tile_size, tile_size)),
+    load_image("kytka2.png", (tile_size, tile_size)),
+    load_image("kytka3.png", (tile_size, tile_size)),
+    load_image("kytka4.png", (tile_size, tile_size)),
+    load_image("kytka5.png", (tile_size, tile_size)),
+    load_image("kytka6.png", (tile_size, tile_size))
+]
+
+# --- Tutorial Text ---
+tutorial_text_content = """Tvá minulost má těžké boty a její kroky se neúprosně blíží. Dlužíš peníze lidem, kteří nezapomínají. Jedinou nadějí je útěk – zmizet daleko od města, na zapomenutý venkov, kde tě nikdo nezná.
+
+Našel jsi útočiště na staré, zanedbané farmě. Je to tvá šance na nový začátek, ale i tvá největší výzva. Nevíš, jestli máš víc času, nebo dluhů. Doufáš, že tě tu stíny minulosti nenajdou, ale co když ano? Musíš být připraven. Farma ti může poskytnout obživu i peníze na splacení alespoň části dluhu.
+
+Jenže začátky jsou těžké a půda sama o sobě nestačí. Čest jsi nechal ve městě. Aby sis zachránil kůži, budeš muset sáhnout k činům, na které nejsi hrdý. Ruka, která sází semínka, se bude muset naučit i krást.
+
+Jak daleko jsi ochoten zajít, abys vykoupil svou svobodu?"""
+
+
+# --- Helper Function for Multi-line Text ---
+def draw_multiline_text(surface, text, pos, font, color, max_width):
+    """Renders text, wrapping it to fit within a specified width."""
+    x, y = pos
+    words = text.split(' ')
+    lines = []
+    current_line = ""
+
+    for word in words:
+        if '\n' in word:
+            parts = word.split('\n')
+            test_line = current_line + " " + parts[0] if current_line else parts[0]
+            if font.size(test_line)[0] < max_width:
+                current_line = test_line
+            else:
+                lines.append(current_line)
+                current_line = parts[0]
+            lines.append(current_line)
+            current_line = parts[1]
+            continue
+
+        test_line = current_line + " " + word if current_line else word
+        if font.size(test_line)[0] < max_width:
+            current_line = test_line
+        else:
+            lines.append(current_line)
+            current_line = word
+    lines.append(current_line)
+
+    for line in lines:
+        text_surface = font.render(line, True, color)
+        surface.blit(text_surface, (x, y))
+        y += font.get_linesize()
+
+
+# --- Game State ---
+current_screen = "main_menu"
+running = True
+
+# --- Main Game Loop ---
+while running:
+    # --- Event Handling ---
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # Left mouse button
+                mouse_pos = event.pos
+                
+                if current_screen == "main_menu":
+                    if button_start.collidepoint(mouse_pos):
+                        current_screen = "game"
+                        print("Start Button Clicked")
+                    elif button_options.collidepoint(mouse_pos):
+                        current_screen = "options"
+                        print("Options Button Clicked")
+                    elif button_exit.collidepoint(mouse_pos):
+                        running = False
+                    elif button_tutorial.collidepoint(mouse_pos):
+                        current_screen = "tutorial"
+                        print("Tutorial Button Clicked")
+                    elif button_load.collidepoint(mouse_pos):
+                        print("Load Button Clicked")
+                    elif button_reset.collidepoint(mouse_pos):
+                        print("Reset Button Clicked")
+
+                elif current_screen == "tutorial":
+                    if back_button.collidepoint(mouse_pos):
+                        current_screen = "main_menu"
+                        print("Back to Main Menu")
+                
+                elif current_screen == "options":
+                    # Add logic for options screen buttons if any
+                    pass # Replace with back button logic for options
+                
+                elif current_screen == "game":
+                    if save_button.collidepoint(mouse_pos):
+                        print("Save Button Clicked (in-game)")
+
+
+    # --- Drawing ---
+    if current_screen == "main_menu":
+        screen.blit(background_image, (0, 0))
+        screen.blit(button_tutorial_image, button_tutorial.topleft)
+        screen.blit(button_start_image, button_start.topleft)
+        screen.blit(button_options_image, button_options.topleft)
+        screen.blit(button_exit_image, button_exit.topleft)
+        screen.blit(load_image_asset, button_load.topleft)
+        screen.blit(restart_image, button_reset.topleft)
+
+    elif current_screen == "game":
+        screen.blit(start_background_image, (0, 0))
+        screen.blit(save_image_asset, save_button.topleft)
+        # Your game drawing logic here
+        
+    elif current_screen == "options":
+        screen.fill(POZADI)
+        # Your options screen drawing logic here
+        # Example: a back button would be useful here too
+        
+    elif current_screen == "tutorial":
+        screen.fill(POZADI) # Dark background
+        
+        # Draw title
+        title_surf = title_font.render("Příběh", True, WHITE)
+        screen.blit(title_surf, ( (SCREEN_WIDTH - title_surf.get_width()) // 2, 80))
+        
+        # Draw the main text content, wrapped
+        text_margin = 150
+        draw_multiline_text(
+            screen,
+            tutorial_text_content,
+            (text_margin, 200),
+            text_font,
+            TEXT_COLOR,
+            SCREEN_WIDTH - (text_margin * 2)
+        )
+        
+        # Draw back button
+        screen.blit(back_image, back_button.topleft)
+
+
+    # --- Update Display ---
+    pygame.display.flip()
+    clock.tick(60)
+
+pygame.quit()
+
